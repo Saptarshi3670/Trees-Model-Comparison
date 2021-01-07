@@ -1,0 +1,110 @@
+---
+title: "BART Model"
+author: "Saptarshi Maiti (A20447671)"
+date: "12/4/2020"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load Data
+```{r}
+filepath <- '/Users/saptarshimaiti/Desktop/Statistical Learning/Project/Project/Data/'
+df_train <- read.csv(file = paste0(filepath, "H1.csv"),sep=",",stringsAsFactors = FALSE, na.strings = "NULL")
+df_test <- read.csv(file = paste0(filepath, "H2.csv"),sep=",",stringsAsFactors = FALSE, na.strings = "NULL")
+
+```
+
+
+#Data Transformation for training
+```{r}
+leadtime<-as.numeric(df_train$LeadTime)
+country<-as.numeric(factor(df_train$Country))
+marketsegment<-as.numeric(factor(df_train$MarketSegment))
+deposittype<-as.numeric(factor(df_train$DepositType))
+customertype<-as.numeric(factor(df_train$CustomerType))
+rcps<-as.numeric(df_train$RequiredCarParkingSpaces)
+week<-as.numeric(df_train$ArrivalDateWeekNumber)
+IsCanceled<-as.numeric(factor(df_train$IsCanceled))
+
+IsCanceled[IsCanceled == "1"] <- "0"
+IsCanceled[IsCanceled == "2"] <- "1"
+
+df_train <- data.frame(leadtime,country,marketsegment,deposittype,customertype,rcps,week,IsCanceled)
+```
+
+
+#Training and Validation Split
+```{r}
+library(caret)
+trainIndex = createDataPartition(df_train$IsCanceled, p = .8, list = FALSE)
+val <- df_train[-trainIndex, -length(df_train)]
+IsCanceled_val <- df_train[-trainIndex, length(df_train)]
+train <- df_train[trainIndex, -length(df_train)]
+IsCanceled_train <- df_train[trainIndex, length(df_train)]
+```
+
+# Bart Model Training
+```{r}
+options(java.parameters = "-Xmx40g")
+library(bartMachine)
+set_bart_machine_num_cores(4)
+bart_machine <- bartMachine(X = train, y = IsCanceled_train, use_missing_data = T, num_iterations_after_burn_in = 500, num_burn_in = 100, flush_indices_to_save_RAM = T)
+summary(bart_machine)
+```
+
+
+# Bart Model Validation
+```{r}
+prediction_val <- predict(bart_machine, val, type = 'class')
+```
+
+# Validation Missclassification Rate
+```{r}
+val_missclassification <-sum(prediction_val!=IsCanceled_val)/length(prediction_val)
+val_missclassification
+```
+
+# Validation Confusion Matrix
+```{r}
+confusionMatrix(as.factor(prediction_val), as.factor(IsCanceled_val), positive="1")
+```
+
+# Testing
+Data Transformation
+```{r}
+leadtime<-as.numeric(df_test$LeadTime)
+country<-as.numeric(factor(df_test$Country))
+marketsegment<-as.numeric(factor(df_test$MarketSegment))
+deposittype<-as.numeric(factor(df_test$DepositType))
+customertype<-as.numeric(factor(df_test$CustomerType))
+rcps<-as.numeric(df_test$RequiredCarParkingSpaces)
+week<-as.numeric(df_test$ArrivalDateWeekNumber)
+IsCanceled_test<-as.numeric(factor(df_test$IsCanceled))
+
+IsCanceled_test[IsCanceled_test == "1"] <- "0"
+IsCanceled_test[IsCanceled_test == "2"] <- "1"
+
+df_test <- data.frame(leadtime,country,marketsegment,deposittype,customertype,rcps,week)
+```
+
+Prediction
+```{r}
+prediction_test <- predict(bart_machine, df_test, type = "class")
+```
+
+Missclassification Rate
+```{r}
+pred_missclassification_test <-sum(prediction_test!=IsCanceled_test)/length(prediction_test)
+pred_missclassification_test
+nrow(df_test)
+nrow(df_train)
+```
+
+# Test Confusion Matrix
+```{r}
+confusionMatrix(as.factor(prediction_test), as.factor(IsCanceled_test), positive="1")
+```

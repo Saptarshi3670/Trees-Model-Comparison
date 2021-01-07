@@ -1,0 +1,129 @@
+---
+title: "BART Versus XGBoost Model"
+author: "Saptarshi Maiti (A20447671)"
+date: "12/4/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# https://towardsdatascience.com/implementing-an-xgboost-model-in-r-59ee1892be2f
+# https://www.sciencedirect.com/science/article/pii/S2352340918315191#s0005
+
+#Load library
+```{r}
+library(xgboost)
+library(Matrix)
+```
+
+
+#Load Data
+```{r}
+filepath <- '/Users/saptarshimaiti/Desktop/Statistical Learning/Project/Project/Data/'
+df_train <- read.csv(file = paste0(filepath, "H1.csv"),sep=",",stringsAsFactors = FALSE, na.strings = "NULL")
+df_test <- read.csv(file = paste0(filepath, "H2.csv"),sep=",",stringsAsFactors = FALSE, na.strings = "NULL")
+```
+
+
+#Data Transformation for training
+```{r}
+leadtime<-as.numeric(df_train$LeadTime)
+country<-as.numeric(factor(df_train$Country))
+marketsegment<-as.numeric(factor(df_train$MarketSegment))
+deposittype<-as.numeric(factor(df_train$DepositType))
+customertype<-as.numeric(factor(df_train$CustomerType))
+rcps<-as.numeric(df_train$RequiredCarParkingSpaces)
+week<-as.numeric(df_train$ArrivalDateWeekNumber)
+IsCanceled<-as.numeric(factor(df_train$IsCanceled))
+
+IsCanceled[IsCanceled == "1"] <- "0"
+IsCanceled[IsCanceled == "2"] <- "1"
+
+df_train <- data.frame(leadtime,country,marketsegment,deposittype,customertype,rcps,week,IsCanceled)
+str(IsCanceled)
+#df_train_mtx <- as.matrix(df_train)
+```
+
+
+#Training and Validation Split
+```{r}
+trainIndex = createDataPartition(df_train$IsCanceled, p = .8, list = FALSE)
+val <- df_train[-trainIndex, -length(df_train)]
+IsCanceled_val <- df_train[-trainIndex, length(df_train)]
+train <- df_train[trainIndex, -length(df_train)]
+IsCanceled_train <- df_train[trainIndex, length(df_train)]
+train <- as.matrix(train)
+val <- as.matrix(val)
+train=as(train, "dgCMatrix")
+train
+val=as(val, "dgCMatrix")
+val
+IsCanceled_train <- as.numeric(factor(IsCanceled_train))
+IsCanceled_train[IsCanceled_train == "1"] <- "0"
+IsCanceled_train[IsCanceled_train == "2"] <- "1"
+
+IsCanceled_val <- as.numeric(factor(IsCanceled_val))
+IsCanceled_val[IsCanceled_val == "1"] <- "0"
+IsCanceled_val[IsCanceled_val == "2"] <- "1"
+```
+
+# Model Fitting XGBoost
+```{r}
+bst <- xgboost(data = train, label = IsCanceled_train, max.depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+summary(bst)
+```
+
+# Prediction Validation
+```{r}
+pred_val <- predict(bst, val)
+prediction_val <- as.numeric(pred_val > 0.5)
+```
+
+# Validation Missclassification Rate
+```{r}
+val_missclassification <-sum(prediction_val!=IsCanceled_val)/length(prediction_val)
+val_missclassification
+```
+
+# Importance Matrix
+```{r}
+importance_matrix <- xgb.importance(model = bst)
+print(importance_matrix)
+xgb.plot.importance(importance_matrix = importance_matrix)
+```
+
+# Testing
+Data Transformation
+```{r}
+leadtime<-as.numeric(df_test$LeadTime)
+country<-as.numeric(factor(df_test$Country))
+marketsegment<-as.numeric(factor(df_test$MarketSegment))
+deposittype<-as.numeric(factor(df_test$DepositType))
+customertype<-as.numeric(factor(df_test$CustomerType))
+rcps<-as.numeric(df_test$RequiredCarParkingSpaces)
+week<-as.numeric(df_test$ArrivalDateWeekNumber)
+IsCanceled_test<-as.numeric(factor(df_test$IsCanceled))
+
+IsCanceled_test[IsCanceled_test == "1"] <- "0"
+IsCanceled_test[IsCanceled_test == "2"] <- "1"
+
+df_test <- data.frame(leadtime,country,marketsegment,deposittype,customertype,rcps,week)
+
+df_test_mtx <- as.matrix(df_test)
+test <- as(df_test_mtx, "dgCMatrix")
+```
+
+Prediction
+```{r}
+pred <- predict(bst, test)
+prediction <- as.numeric(pred > 0.5)
+```
+
+Missclassification Rate
+```{r}
+pred_missclassification <-sum(prediction!=IsCanceled_test)/length(prediction)
+pred_missclassification
+```
+

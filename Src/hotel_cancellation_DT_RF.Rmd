@@ -1,0 +1,119 @@
+---
+title: "Decision Trees & Random Forest"
+author: "Niti Wattanasirichaigoon (A20406934)"
+date: "12/4/2020"
+output: pdf_document
+---
+
+
+# Load Data
+```{r}
+df_train <- read.csv(file="H1.csv",sep=",",stringsAsFactors = FALSE, na.strings = "NULL")
+df_test <- read.csv(file="H2.csv",sep=",",stringsAsFactors = FALSE, na.strings = "NULL")
+```
+
+
+# Data Transformation for training and testing
+```{r}
+df_train$Country <- as.numeric(factor(df_train$Country))
+df_train$MarketSegment <- as.numeric(factor(df_train$MarketSegment))
+df_train$DepositType <- as.numeric(factor(df_train$DepositType))
+df_train$CustomerType <- as.numeric(factor(df_train$CustomerType))
+df_train$IsCanceled <- factor(df_train$IsCanceled)
+
+df_train <- df_train[c('IsCanceled','LeadTime', 'Country', 'MarketSegment', 
+                       'DepositType', 'CustomerType', 'RequiredCarParkingSpaces',
+                       'ArrivalDateWeekNumber')]
+                     
+df_test$Country <- as.numeric(factor(df_test$Country))
+df_test$MarketSegment <- as.numeric(factor(df_test$MarketSegment))
+df_test$DepositType <- as.numeric(factor(df_test$DepositType))
+df_test$CustomerType <- as.numeric(factor(df_test$CustomerType))
+df_test$IsCanceled <- factor(df_test$IsCanceled)
+
+df_test <- df_test[c('IsCanceled','LeadTime', 'Country', 'MarketSegment', 
+                       'DepositType', 'CustomerType', 'RequiredCarParkingSpaces',
+                       'ArrivalDateWeekNumber')]
+
+addmargins(table(df_train$IsCanceled))
+```
+# Training and validation split
+```{r}
+library(caret)
+set.seed(111)
+trainIndex = createDataPartition(df_train$IsCanceled, p = .8, list = FALSE)
+val_x = df_train[-trainIndex, -1]
+val_y = df_train[-trainIndex, 1]
+```
+
+# Decision Tree
+Build simple decision tree, plot it, and calculate misclassification rate.
+```{r}
+library(rpart)
+library(rpart.plot)
+
+# using all attributes
+fit = rpart(IsCanceled ~ ., data = df_train[trainIndex,])
+rpart.plot(fit, type=3)
+```
+## Training misclassification rate and confusion matrix
+```{r}
+tree_pred = predict(fit, df_train[trainIndex,-1], type = 'class')
+miss_rate = sum(tree_pred != df_train[trainIndex,1])/length(tree_pred)
+miss_rate
+```
+
+```{r}
+library(e1071)
+confusionMatrix(tree_pred, df_train[trainIndex,1])
+```
+
+
+## Validation misclassification rate and confusion matrix
+```{r}
+tree_pred = predict(fit, val_x, type = 'class')
+miss_rate = sum(tree_pred != val_y)/length(tree_pred)
+miss_rate
+```
+```{r}
+confusionMatrix(tree_pred, val_y)
+```
+
+## Test set misclassification rate and confusion matrix
+```{r}
+tree_pred = predict(fit, df_test[,-1], type = 'class')
+miss_rate = sum(tree_pred != df_test[,1])/length(tree_pred)
+miss_rate
+```
+
+```{r}
+confusionMatrix(tree_pred, df_test[,1])
+```
+
+
+# Random Forest
+
+```{r message=FALSE}
+library(randomForest)
+set.seed(123)
+rf_fit = randomForest(IsCanceled ~ ., data = df_train[trainIndex,], na.action=na.omit)
+```
+## Training confusion matrix
+```{r}
+rf_pred = predict(rf_fit, df_train[trainIndex,-1], type = 'class')
+confusionMatrix(rf_pred, df_train[trainIndex,1])
+```
+## Validation confusion matrix
+```{r}
+rf_pred = predict(rf_fit, val_x)
+confusionMatrix(rf_pred, val_y)
+```
+
+## Test set misclassification rate and confusion matrix
+```{r}
+# make predictions
+rf_pred = predict(rf_fit, df_test[,-1], type = 'class')
+confusionMatrix(rf_pred, df_test[,1])
+```
+
+
